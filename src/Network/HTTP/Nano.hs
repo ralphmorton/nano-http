@@ -3,6 +3,7 @@
 module Network.HTTP.Nano(
     module Network.HTTP.Nano.Types,
     module Network.HTTP.Nano.Instances,
+    Network.HTTP.Conduit.Request,
     mkJSONData,
     http,
     http',
