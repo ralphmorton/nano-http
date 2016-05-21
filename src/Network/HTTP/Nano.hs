@@ -4,6 +4,7 @@ module Network.HTTP.Nano(
     module Network.HTTP.Nano.Types,
     module Network.HTTP.Nano.Instances,
     Network.HTTP.Conduit.Request,
+    tlsManager,
     mkJSONData,
     http,
     http',
@@ -29,6 +30,10 @@ import Data.String (fromString)
 import Network.HTTP.Client (HttpException(..))
 import Network.HTTP.Conduit hiding (http)
 import Network.HTTP.Types.Status (statusCode, statusMessage)
+
+-- |Create an HTTP manager
+tlsManager :: IO Manager
+tlsManager = newManager tlsManagerSettings
 
 -- |Create a JSON request body
 mkJSONData :: ToJSON d => d -> RequestData
