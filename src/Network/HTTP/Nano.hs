@@ -66,6 +66,7 @@ attachRequestData :: RequestData -> Request -> Request
 attachRequestData NoRequestData req = req
 attachRequestData (JSONRequestData (JSONData b)) req = req { requestBody = RequestBodyLBS (encode b) }
 attachRequestData (UrlEncodedRequestData px) req = flip urlEncodedBody req $ fmap (bimap B.pack B.pack) px
+attachRequestData (RawRequestData bs) req = req { requestBody = RequestBodyLBS bs }
 
 -- |Add headers to a request
 addHeaders :: [(String, String)] -> Request -> Request

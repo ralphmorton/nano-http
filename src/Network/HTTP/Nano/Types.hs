@@ -5,6 +5,7 @@ module Network.HTTP.Nano.Types where
 
 import Control.Lens.TH
 import Data.Aeson (ToJSON)
+import Data.ByteString.Lazy (ByteString)
 import Network.HTTP.Client (HttpException)
 import Network.HTTP.Conduit (Manager)
 
@@ -27,7 +28,11 @@ data HttpError =
 data JSONData = forall d . ToJSON d => JSONData d
 
 -- |Request Data
-data RequestData = NoRequestData | JSONRequestData JSONData | UrlEncodedRequestData [(String, String)]
+data RequestData
+    = NoRequestData
+    | JSONRequestData JSONData
+    | UrlEncodedRequestData [(String, String)]
+    | RawRequestData ByteString
 
 makeClassy ''HttpCfg
 makeClassyPrisms ''HttpError
