@@ -1,5 +1,5 @@
 name:                nano-http
-version:             0.1.2
+version:             0.1.3
 synopsis:            A lightweight wrapper around conduit
 description:         A lightweight wrapper around conduit
 homepage:            https://github.com/ralphmorton/nano-http#readme
@@ -24,6 +24,9 @@ library
                      , http-client >= 0.4.28
                      , http-types >= 0.9
                      , http-conduit >= 2.1.8
+                     , conduit >= 1.2.6.4
+                     , resourcet >= 1.1.7.3
+                     , json-stream >= 0.4.1.0
   default-language:    Haskell2010
 
 source-repository head

@@ -8,6 +8,7 @@ module Network.HTTP.Nano(
     mkJSONData,
     http,
     http',
+    httpS,
     httpJSON,
     buildReq,
     addHeaders
@@ -22,13 +23,18 @@ import Control.Monad
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad.Trans.Resource (MonadResource)
 import Data.Aeson (FromJSON, ToJSON, decode, encode)
 import Data.Bifunctor (bimap)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
+import Data.Conduit (ResumableSource(..), Conduit, ($=+))
+import qualified Data.Conduit.List as CL
 import Data.String (fromString)
+import Data.JsonStream.Parser (value, parseByteString, Parser)
 import Network.HTTP.Client (HttpException(..))
 import Network.HTTP.Conduit hiding (http)
+import qualified Network.HTTP.Conduit as HC
 import Network.HTTP.Types.Status (statusCode, statusMessage)
 
 -- |Create an HTTP manager
@@ -46,6 +52,17 @@ http req = view httpManager >>= safeHTTP . httpLbs req >>= return . responseBody
 -- |Perform an HTTP request, ignoring the response
 http' :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => Request -> m ()
 http' req = http req >> return ()
+
+httpS :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m) => Request -> m (ResumableSource m B.ByteString)
+httpS req = view httpManager >>= HC.http req >>= return . responseBody
+
+httpSJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Request -> m (ResumableSource m a)
+httpSJSON req = do
+    src <- httpS req 
+    return $ src $=+ jsonConduit 
+
+jsonConduit :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Conduit B.ByteString m a
+jsonConduit = CL.mapFoldable (parseByteString value)
 
 -- |Perform an HTTP request, attempting to parse the response as JSON
 httpJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m, FromJSON b) => Request -> m b
