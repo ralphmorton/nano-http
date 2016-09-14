@@ -2,20 +2,19 @@
 
 module Network.HTTP.Nano(
     module Network.HTTP.Nano.Types,
-    module Network.HTTP.Nano.Instances,
     Network.HTTP.Conduit.Request,
     tlsManager,
     mkJSONData,
     http,
     http',
     httpS,
+    httpSJSON,
     httpJSON,
     buildReq,
     addHeaders
 ) where
 
 import Network.HTTP.Nano.Types
-import Network.HTTP.Nano.Instances
 
 import Control.Exception (handle)
 import Control.Lens (review, view)
@@ -24,18 +23,16 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (MonadIO, liftIO)
 import Control.Monad.Trans.Resource (MonadResource)
-import Data.Aeson (FromJSON, ToJSON, decode, encode)
+import Data.Aeson (FromJSON, ToJSON (..), decode, encode)
 import Data.Bifunctor (bimap)
+import Data.Conduit (ResumableSource, Conduit, ($=+))
+import Data.JsonStream.Parser (value, parseByteString)
+import Data.String (fromString)
+import Network.HTTP.Conduit hiding (http)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.Conduit (ResumableSource(..), Conduit, ($=+))
 import qualified Data.Conduit.List as CL
-import Data.String (fromString)
-import Data.JsonStream.Parser (value, parseByteString, Parser)
-import Network.HTTP.Client (HttpException(..))
-import Network.HTTP.Conduit hiding (http)
 import qualified Network.HTTP.Conduit as HC
-import Network.HTTP.Types.Status (statusCode, statusMessage)
 
 -- |Create an HTTP manager
 tlsManager :: IO Manager
@@ -43,23 +40,23 @@ tlsManager = newManager tlsManagerSettings
 
 -- |Create a JSON request body
 mkJSONData :: ToJSON d => d -> RequestData
-mkJSONData = JSONRequestData . JSONData
+mkJSONData = JSONRequestData . toJSON
 
 -- |Perform an HTTP request
 http :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => Request -> m BL.ByteString
-http req = view httpManager >>= safeHTTP . httpLbs req >>= return . responseBody
+http req = responseBody <$> (view httpManager >>= safeHTTP . httpLbs req)
 
 -- |Perform an HTTP request, ignoring the response
 http' :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => Request -> m ()
-http' req = http req >> return ()
+http' = void . http
 
 httpS :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m) => Request -> m (ResumableSource m B.ByteString)
-httpS req = view httpManager >>= HC.http req >>= return . responseBody
+httpS req = responseBody <$> (view httpManager >>= HC.http req)
 
 httpSJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Request -> m (ResumableSource m a)
 httpSJSON req = do
-    src <- httpS req 
-    return $ src $=+ jsonConduit 
+    src <- httpS req
+    return $ src $=+ jsonConduit
 
 jsonConduit :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Conduit B.ByteString m a
 jsonConduit = CL.mapFoldable (parseByteString value)
@@ -69,19 +66,19 @@ httpJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, Monad
 httpJSON req = http req >>= asJSON
 
 asJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m, FromJSON b) => BL.ByteString -> m b
-asJSON bs = case (decode bs) of
+asJSON bs = case decode bs of
     Nothing -> throwError . review _ResponseParseError $ BL.unpack bs
     Just b -> return b
 
 -- |Build a request
 buildReq :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => HttpMethod -> URL -> RequestData -> m Request
 buildReq mthd url dta = do
-    breq <- safeHTTP $ parseUrl url
-    return . attachRequestData dta $ breq { method = B.pack $ show mthd }
+    breq <- safeHTTP $ parseUrlThrow url
+    return . attachRequestData dta $ breq { method = B.pack $ showHttpMethod mthd }
 
 attachRequestData :: RequestData -> Request -> Request
 attachRequestData NoRequestData req = req
-attachRequestData (JSONRequestData (JSONData b)) req = req { requestBody = RequestBodyLBS (encode b) }
+attachRequestData (JSONRequestData b) req = req { requestBody = RequestBodyLBS (encode b) }
 attachRequestData (UrlEncodedRequestData px) req = flip urlEncodedBody req $ fmap (bimap B.pack B.pack) px
 attachRequestData (RawRequestData bs) req = req { requestBody = RequestBodyLBS bs }
 
@@ -95,7 +92,7 @@ addHeaders hx req = req { requestHeaders = ehx ++ nhx }
 
 safeHTTP :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => IO a -> m a
 safeHTTP act = do
-    res <- liftIO $ handle (return . Left) (act >>= return . Right)
+    res <- liftIO $ handle (return . Left) (Right <$> act)
     case res of
         Left ex -> throwError $ review _NetworkError ex
         Right r -> return r
