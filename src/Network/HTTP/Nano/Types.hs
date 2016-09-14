@@ -1,20 +1,29 @@
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Network.HTTP.Nano.Types where
 
 import Control.Lens.TH
-import Data.Aeson (ToJSON)
+import Data.Aeson (Value)
 import Data.ByteString.Lazy (ByteString)
 import Network.HTTP.Client (HttpException)
 import Network.HTTP.Conduit (Manager)
 
 type URL = String
 
-data HttpMethod = OPTIONS | HEAD | GET | PUT | POST | DELETE | CustomMethod String
+data HttpMethod = OPTIONS | HEAD | GET | PUT | POST | DELETE | PATCH | CustomMethod String
+
+showHttpMethod :: HttpMethod -> String
+showHttpMethod OPTIONS = "OPTIONS"
+showHttpMethod HEAD    = "HEAD"
+showHttpMethod GET     = "GET"
+showHttpMethod PUT     = "PUT"
+showHttpMethod POST    = "POST"
+showHttpMethod DELETE  = "DELETE"
+showHttpMethod PATCH   = "PATCH"
+showHttpMethod (CustomMethod m) = m
 
 -- |HTTP config
-data HttpCfg = HttpCfg {
+newtype HttpCfg = HttpCfg {
     _httpManager :: Manager
 }
 
@@ -24,13 +33,10 @@ data HttpError =
     ResponseParseError String
     deriving Show
 
--- |Existential container for JSON data
-data JSONData = forall d . ToJSON d => JSONData d
-
 -- |Request Data
 data RequestData
     = NoRequestData
-    | JSONRequestData JSONData
+    | JSONRequestData Value
     | UrlEncodedRequestData [(String, String)]
     | RawRequestData ByteString
 
