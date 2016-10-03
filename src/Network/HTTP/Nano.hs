@@ -7,8 +7,6 @@ module Network.HTTP.Nano(
     mkJSONData,
     http,
     http',
-    httpS,
-    httpSJSON,
     httpJSON,
     buildReq,
     addHeaders
@@ -25,8 +23,6 @@ import Control.Monad.Trans (MonadIO, liftIO)
 import Control.Monad.Trans.Resource (MonadResource)
 import Data.Aeson (FromJSON, ToJSON (..), decode, encode)
 import Data.Bifunctor (bimap)
-import Data.Conduit (ResumableSource, Conduit, ($=+))
-import Data.JsonStream.Parser (value, parseByteString)
 import Data.String (fromString)
 import Network.HTTP.Conduit hiding (http)
 import qualified Data.ByteString.Char8 as B
@@ -49,17 +45,6 @@ http req = responseBody <$> (view httpManager >>= safeHTTP . httpLbs req)
 -- |Perform an HTTP request, ignoring the response
 http' :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => Request -> m ()
 http' = void . http
-
-httpS :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m) => Request -> m (ResumableSource m B.ByteString)
-httpS req = responseBody <$> (view httpManager >>= HC.http req)
-
-httpSJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Request -> m (ResumableSource m a)
-httpSJSON req = do
-    src <- httpS req
-    return $ src $=+ jsonConduit
-
-jsonConduit :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadResource m, FromJSON a) => Conduit B.ByteString m a
-jsonConduit = CL.mapFoldable (parseByteString value)
 
 -- |Perform an HTTP request, attempting to parse the response as JSON
 httpJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m, FromJSON b) => Request -> m b
