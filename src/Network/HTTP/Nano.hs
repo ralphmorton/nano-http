@@ -67,7 +67,7 @@ httpJSON req = http req >>= asJSON
 
 asJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m, FromJSON b) => BL.ByteString -> m b
 asJSON bs = case eitherDecode bs of
-    Left err -> throwError (review _ResponseParseError err)
+    Left err -> throwError (review _ResponseParseError (err ++ "; original data: " ++ BL.unpack bs))
     Right b -> return b
 
 -- |Build a request
