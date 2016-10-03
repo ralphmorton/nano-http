@@ -23,7 +23,7 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans (MonadIO, liftIO)
 import Control.Monad.Trans.Resource (MonadResource)
-import Data.Aeson (FromJSON, ToJSON (..), decode, encode)
+import Data.Aeson (FromJSON, ToJSON (..), eitherDecode, encode)
 import Data.Bifunctor (bimap)
 import Data.Conduit (ResumableSource, Conduit, ($=+))
 import Data.JsonStream.Parser (value, parseByteString)
@@ -66,9 +66,9 @@ httpJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, Monad
 httpJSON req = http req >>= asJSON
 
 asJSON :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m, FromJSON b) => BL.ByteString -> m b
-asJSON bs = case decode bs of
-    Nothing -> throwError . review _ResponseParseError $ BL.unpack bs
-    Just b -> return b
+asJSON bs = case eitherDecode bs of
+    Left err -> throwError (review _ResponseParseError err)
+    Right b -> return b
 
 -- |Build a request
 buildReq :: (MonadError e m, MonadReader r m, AsHttpError e, HasHttpCfg r, MonadIO m) => HttpMethod -> URL -> RequestData -> m Request
